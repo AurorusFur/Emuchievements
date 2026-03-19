@@ -9,7 +9,7 @@ import
 	Router,
 	staticClasses
 } from "@decky/ui";
-import { definePlugin, routerHook, toaster } from "@decky/api";
+import { definePlugin, routerHook } from "@decky/api";
 import { FaClipboardCheck } from "react-icons/fa";
 import { SettingsComponent } from "./components/settingsComponent";
 import { EmuchievementsComponent } from "./components/emuchievementsComponent";
@@ -106,7 +106,6 @@ export default definePlugin(function ()
 	const mountManager = new MountManager(eventBus, logger);
 
 	logger.debug(Achievements);
-	toaster.toast({ title: "DBG init", body: `AppDetailsSections=${!!AppDetailsSections} Achievements=${!!Achievements}` });
 
 	mountManager.addPageMount("/emuchievements/settings", () =>
 		<EmuchievementsStateContextProvider emuchievementsState={state}>
@@ -252,7 +251,6 @@ export default definePlugin(function ()
 				if (!overview) return component;
 				// const details: SteamAppDetails = component._owner.pendingProps.details;
 				logger.debug(component._owner.pendingProps);
-				toaster.toast({ title: "DBG render", body: `appid=${overview.appid} type=${overview.app_type} hasProto=${!!component._owner.type?.prototype}` });
 				if (overview.app_type === 1073741824)
 				{
 					if (component._owner.type?.prototype)
@@ -262,9 +260,7 @@ export default definePlugin(function ()
 							"GetSections",
 							(_: Record<string, unknown>[], ret3: Set<string>) =>
 							{
-								const ready = state.managers.achievementManager.isReady(overview.appid);
-								toaster.toast({ title: "DBG GetSections", body: `appid=${overview.appid} ready=${ready} game_page=${state.settings.general.game_page} sections=${[...ret3].join(',')}` });
-								if (state.settings.general.game_page && ready) ret3.add("achievements");
+								if (state.settings.general.game_page && state.managers.achievementManager.isReady(overview.appid)) ret3.add("achievements");
 								else ret3.delete("achievements");
 								return ret3;
 							}

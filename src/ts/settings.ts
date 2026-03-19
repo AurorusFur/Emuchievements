@@ -158,23 +158,18 @@ export class Settings
 
 	async readSettings(): Promise<void>
 	{
-		toaster.toast({ title: "DBG readSettings", body: "called" });
 		let needsWrite = false;
 		const release = await this.mutex.acquire();
 		try
 		{
 			let buffer = "";
-			let length: number;
-			try { length = await call<[number], number>("start_read_config", this.packet_size); } catch(e: any) { toaster.toast({ title: "DBG readSettings", body: `${e?.pythonTraceback ?? e?.message ?? String(e)}`.substring(0, 200) }); throw e; }
+			const length = await call<[number], number>("start_read_config", this.packet_size);
 			for (let i = 0; i < length; i++)
 			{
 				buffer += await call<[number], string>("read_config", i);
 			}
 			this.logger.debug("readSettings", buffer);
-			toaster.toast({ title: "DBG readSettings", body: `bufLen=${buffer.length} buf0="${buffer.substring(0,50)}"` });
-			let data: SettingsData;
-			try { data = JSON.parse(buffer); } catch(e: any) { toaster.toast({ title: "DBG readSettings", body: `JSON.parse error: ${e.message}` }); throw e; }
-			toaster.toast({ title: "DBG readSettings", body: `ver=${data.config_version} logged_in=${(data.retroachievements as any)?.logged_in} user="${data.retroachievements?.username}"` });
+			const data: SettingsData = JSON.parse(buffer);
 			if (data.config_version !== CONFIG_VERSION)
 			{
 				const t = getTranslateFunc();
@@ -209,7 +204,6 @@ export class Settings
 		try
 		{
 			const buffer = JSON.stringify(this.data, undefined, "\t");
-			toaster.toast({ title: "DBG writeSettings", body: `logged_in=${this.data.retroachievements.logged_in} user="${this.data.retroachievements.username}"` });
 			const length = Math.ceil(buffer.length / this.packet_size);
 			await call<[number, number], void>("start_write_config", length, this.packet_size);
 			for (let i = 0; i < length; i++)

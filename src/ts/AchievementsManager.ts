@@ -262,7 +262,6 @@ export class AchievementManager implements Manager
 
 	public async loadCache()
 	{
-		toaster.toast({ title: "DBG loadCache", body: "called" });
 		await this.state.settings.readSettings();
 		this.cache = this.state.settings.cache;
 		await this.saveCache();

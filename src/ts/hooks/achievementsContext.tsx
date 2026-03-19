@@ -1,4 +1,4 @@
-import { call, fetchNoCors, toaster } from "@decky/api";
+import { call, fetchNoCors } from "@decky/api";
 import { createContext, FC, ReactNode, useContext, useEffect, useState } from "react";
 import { AchievementManager, Manager } from "../AchievementsManager";
 import { getAllNonSteamAppOverview } from "../steam-utils";
@@ -225,29 +225,24 @@ export class EmuchievementsState
 		{
 			if (this._login === true) return true;
 			const { logged_in, username, api_key } = this.settings.retroachievements;
-			toaster.toast({ title: "DBG loggedIn", body: `_login=${this._login} persisted=${logged_in} user="${username}" keyLen=${api_key?.length ?? 0}` });
 			if (logged_in && username && api_key)
 			{
 				this._login = true;
-				toaster.toast({ title: "DBG loggedIn", body: "Using persisted session" });
 				return true;
 			}
 			const url = `https://retroachievements.org/API/API_GetAchievementOfTheWeek.php?z=${username}&y=${api_key}`;
 			try
 			{
 				const authenticated = await fetchNoCors(url);
-				toaster.toast({ title: "DBG loggedIn", body: `API status=${authenticated.status} ok=${authenticated.ok}` });
 				if (authenticated.ok)
 				{
 					const body = await authenticated.text();
 					this._login = !body.includes("Invalid API Key");
 					this.settings.retroachievements.logged_in = this._login;
-					toaster.toast({ title: "DBG loggedIn", body: `result=${this._login} body="${body?.substring(0, 100)}"` });
 					if (this._login) await this.settings.writeSettings();
 					return this._login;
 				}
 			} catch (e: any) {
-				toaster.toast({ title: "DBG loggedIn", body: `fetch error: ${e?.message ?? e}` });
 			}
 			return false;
 		})();
