@@ -7,7 +7,7 @@ import
 	PanelSectionRow,
 	ProgressBarItem,
 	ProgressBarWithInfo
-} from "decky-frontend-lib";
+} from "@decky/ui";
 import { useEmuchievementsState } from "../hooks/achievementsContext";
 import { FaCog, FaSync, FaTrash } from "react-icons/fa";
 import { useTranslations } from "../useTranslations";

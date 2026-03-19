@@ -18,8 +18,9 @@ import
 	Navigation,
 	Dropdown,
 	ButtonItem,
-} from "decky-frontend-lib";
+} from "@decky/ui";
 import { useEmuchievementsState } from "../hooks/achievementsContext";
+import { toaster } from "@decky/api";
 import { ReactMarkdown, ReactMarkdownOptions } from "react-markdown/lib/react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "../useTranslations";
@@ -114,7 +115,7 @@ const GeneralSettings: VFC = () =>
 const RetroAchievementsSettings: VFC = () =>
 {
 	const t = useTranslations();
-	const { serverAPI, loadingData, loggedIn, login, settings } = useEmuchievementsState();
+	const { loadingData, login, settings } = useEmuchievementsState();
 	const [loginData , setLoginData] = useState({
 		username: '',
 		api_key: '',
@@ -132,7 +133,7 @@ const RetroAchievementsSettings: VFC = () =>
 			username: settings.retroachievements.username,
 			api_key: settings.retroachievements.api_key
 		})
-	}, []);
+	}, [settings.retroachievements.username, settings.retroachievements.api_key]);
 
 	return (<div style={{
 		marginTop: '40px',
@@ -172,14 +173,14 @@ const RetroAchievementsSettings: VFC = () =>
 					{
 						const { username, api_key } = loginData;
 
-						await login({
+						const result = await login({
 							username,
 							api_key,
 						});
 
-						serverAPI.toaster.toast({
+						toaster.toast({
 							title: t("title"),
-							body: await loggedIn ? t("loginSuccess") : t("loginFailed")
+							body: result ? t("loginSuccess") : t("loginFailed")
 						});
 					}}>
 					Login

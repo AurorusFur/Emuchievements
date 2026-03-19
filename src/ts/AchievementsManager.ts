@@ -1,4 +1,5 @@
-import { ServerAPI, sleep } from "decky-frontend-lib";
+import { sleep } from "@decky/ui";
+import { call, fetchNoCors, toaster } from "@decky/api";
 import { rawGameToGame, retroAchievementToSteamAchievement } from "./Mappers";
 import Logger from "./logger";
 import { EmuchievementsState } from "./hooks/achievementsContext";
@@ -182,11 +183,6 @@ export class AchievementManager implements Manager
 		this.state.loadingData.fetching = value;
 	}
 
-	get serverAPI(): ServerAPI
-	{
-		return this.state.serverAPI;
-	}
-
 	constructor(state: EmuchievementsState)
 	{
 		this._state = state;
@@ -282,7 +278,7 @@ export class AchievementManager implements Manager
 			return undefined;
 		};
 
-		await waitForOnline(this.serverAPI);
+		await waitForOnline();
 		const shortcut = await getAppDetails(app_id);
 		this.logger.debug(`${app_id} shortcut: `, shortcut);
 		let hash: string | null = null;
@@ -341,27 +337,19 @@ export class AchievementManager implements Manager
 
 					await this.saveCache();
 				} else {
-					const md5 = await this.serverAPI.callPluginMethod<
-						{
-							path: string;
-						},
-						string
-					>("hash", { path: rom });
-					this.logger.debug(`${app_id} md5: `, md5.result);
-					if (md5.success)
+					const md5 = await call<[string], string>("hash", rom);
+					this.logger.debug(`${app_id} md5: `, md5);
+					if (md5 === "")
 					{
-						if (md5.result === "")
-						{
-							this.ids[app_id] = null;
-							await this.saveCache();
-							return undefined;
-						} else
-						{
-							this.ids[app_id] = this.hashes[md5.result];
-							hash = md5.result;
-							await this.saveCache();
-						}
-					} else throw new Error(md5.result);
+						this.ids[app_id] = null;
+						await this.saveCache();
+						return undefined;
+					} else
+					{
+						this.ids[app_id] = this.hashes[md5];
+						hash = md5;
+						await this.saveCache();
+					}
 				}
 			} else
 			{
@@ -388,10 +376,7 @@ export class AchievementManager implements Manager
 					await sleep(sleep_ms);
 					sleep_ms *= 2;
 				}
-				const response = await this.serverAPI.fetchNoCors<{
-					body: string;
-					status: number;
-				}>(
+				const response = await fetchNoCors(
 					`https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?z=${settings.retroachievements.username}&y=${settings.retroachievements.api_key}&u=${settings.retroachievements.username}&g=${game_id}`,
 					{
 						headers: {
@@ -399,48 +384,43 @@ export class AchievementManager implements Manager
 						},
 					}
 				);
-				if (response.success)
+				if (
+					response.status == 429 ||
+					response.status == 504 ||
+					response.status == 500
+				)
 				{
-					if (
-						response.result.status == 429 ||
-						response.result.status == 504 ||
-						response.result.status == 500
-					)
-					{
-						this.logger.debug(`response status was ${response.result.status}, retrying`, retry);
-						retry++;
-					} else if (response.result.status == 200)
-					{
-						const game = JSON.parse(response.result.body) as GameRaw;
+					this.logger.debug(`response status was ${response.status}, retrying`, retry);
+					retry++;
+				} else if (response.status == 200)
+				{
+					const body = await response.text();
+					const game = JSON.parse(body) as GameRaw;
 
-						this.logger.debug(`${app_id} game: `, game);
-						if (game_id && hash)
-						{
-							const result: AchievementsData = {
-								game_id: game_id,
-								game: rawGameToGame(game),
-								md5: hash,
-								last_updated_at: new Date(),
-							};
-							if (Object.keys(result.game?.achievements)?.length == 0)
-							{
-								return undefined;
-							}
-							this.achievements[app_id] = result;
-							this.logger.debug(`${app_id} result:`, result);
-							return result;
-						} else
+					this.logger.debug(`${app_id} game: `, game);
+					if (game_id && hash)
+					{
+						const result: AchievementsData = {
+							game_id: game_id,
+							game: rawGameToGame(game),
+							md5: hash,
+							last_updated_at: new Date(),
+						};
+						if (Object.keys(result.game?.achievements)?.length == 0)
 						{
 							return undefined;
 						}
+						this.achievements[app_id] = result;
+						this.logger.debug(`${app_id} result:`, result);
+						return result;
 					} else
 					{
-						this.logger.debug(`gameResponse: ${JSON.stringify(response, undefined, "\t")}`);
-						throw new Error(`${response.result.status}`);
+						return undefined;
 					}
 				} else
 				{
-					throw new Error(response.result);
+					this.logger.debug(`gameResponse: status ${response.status}`);
+					throw new Error(`${response.status}`);
 				}
 			}
 			throw new Error("Maximum retries exceeded");
@@ -626,7 +606,7 @@ export class AchievementManager implements Manager
 		try
 		{
 			this.errored = false
-			if (!await checkOnlineStatus(this.serverAPI))
+			if (!await checkOnlineStatus())
 				throw new Error("No Internet");
 			if (await this.state.loggedIn)
 			{
@@ -666,7 +646,7 @@ export class AchievementManager implements Manager
 				}
 			} else
 			{
-				this.serverAPI.toaster.toast({
+				toaster.toast({
 					title: this.t("title"),
 					body: this.t("noLogin"),
 				});
@@ -806,18 +786,16 @@ export class AchievementManager implements Manager
 	async init(): Promise<void>
 	{
 		await this.loadCache();
-		const response = await this.serverAPI.fetchNoCors<{
-			body: string;
-			status: number;
-		}>("https://retroachievements.org/dorequest.php?r=hashlibrary", {
+		const response = await fetchNoCors("https://retroachievements.org/dorequest.php?r=hashlibrary", {
 			headers: {
 				"User-Agent": `Emuchievements/${process.env.VERSION} (+https://github.com/EmuDeck/Emuchievements)`,
 			},
 		});
-		if (response.success)
+		if (response.ok)
 		{
+			const body = await response.text();
 			this.hashes = (
-				JSON.parse(response.result.body.toLowerCase()) as { md5list: Record<string, number>; }
+				JSON.parse(body.toLowerCase()) as { md5list: Record<string, number>; }
 			).md5list;
 		}
 		await this.refresh();

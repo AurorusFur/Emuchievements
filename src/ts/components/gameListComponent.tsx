@@ -1,4 +1,4 @@
-import { Field, Focusable, Navigation, ProgressBarWithInfo } from "decky-frontend-lib";
+import { Field, Focusable, Navigation, ProgressBarWithInfo } from "@decky/ui";
 import { useEffect, useState, VFC } from "react";
 // import {useTranslations} from "../useTranslations";
 // import Logger from "../logger";

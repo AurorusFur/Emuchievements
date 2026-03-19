@@ -1,4 +1,4 @@
-import { ButtonItem } from "decky-frontend-lib";
+import { ButtonItem } from "@decky/ui";
 import { CSSProperties, FC } from "react";
 
 export type PropsWithStyles<P> = P & {

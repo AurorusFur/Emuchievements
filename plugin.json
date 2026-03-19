@@ -1,6 +1,7 @@
 {
   "name": "Emuchievements",
   "author": "Kernel Panic",
+  "api_version": 1,
   "flags": [],
   "publish": {
     "tags": ["EmuDeck", "retroachievements"],
