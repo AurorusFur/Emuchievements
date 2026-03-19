@@ -513,6 +513,8 @@ export class AchievementManager implements Manager
 				this.userAchievements[app_id] = result.user;
 				this.globalAchievements[app_id] = result.global;
 				this.loading[app_id] = false;
+				try { appDetailsStore.GetAchievements(app_id); } catch (_) {}
+				this._state.notifyUpdate();
 			});
 
 			return loadingFetchedAchievements;

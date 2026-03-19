@@ -24,7 +24,7 @@ import
 } from "./SteamTypes";
 import { checkOnlineStatus, waitForOnline } from "./steam-utils";
 import { EventBus, MountManager } from "./System";
-import { patchAppPage } from "./RoutePatches";
+import { patchAppPage, patchAchievementsPage } from "./RoutePatches";
 import { runInAction } from "mobx";
 import { getTranslateFunc } from "./useTranslations";
 import { GameListComponent } from "./components/gameListComponent";
@@ -71,7 +71,7 @@ const AppDetailsSections = findModuleChild((m) =>
 		{
 			if (
 				typeof m[prop] === 'function' &&
-				m[prop].toString().includes("m_setSectionsMemo")
+				typeof m[prop].prototype?.GetSections === 'function'
 			) return m[prop];
 		} catch (_) {}
 	}
@@ -215,10 +215,7 @@ export default definePlugin(function ()
 				"GetAchievements",
 				args =>
 				{
-					if (state.managers.achievementManager.isReady(args[0]))
-					{
-						setAchievements(args[0]);
-					}
+					setAchievements(args[0]);
 				}
 			);
 		}
@@ -244,30 +241,15 @@ export default definePlugin(function ()
 	mountManager.addPatchMount({
 		patch(): Patch
 		{
-			return afterPatch(AppDetailsSections?.prototype, 'render', (_: Record<string, unknown>[], component: any) =>
+			return afterPatch(AppDetailsSections?.prototype, 'GetSections', function(this: any, _: Record<string, unknown>[], ret: Set<string>)
 			{
-				if (!component?._owner?.pendingProps) return component;
-				const overview: SteamAppOverview = component._owner.pendingProps.overview;
-				if (!overview) return component;
-				// const details: SteamAppDetails = component._owner.pendingProps.details;
-				logger.debug(component._owner.pendingProps);
-				if (overview.app_type === 1073741824)
+				const overview: SteamAppOverview = this?.props?.overview;
+				if (overview?.app_type === 1073741824)
 				{
-					if (component._owner.type?.prototype)
-					{
-						afterPatch(
-							component._owner.type.prototype,
-							"GetSections",
-							(_: Record<string, unknown>[], ret3: Set<string>) =>
-							{
-								if (state.settings.general.game_page && state.managers.achievementManager.isReady(overview.appid)) ret3.add("achievements");
-								else ret3.delete("achievements");
-								return ret3;
-							}
-						);
-					}
+					if (state.settings.general.game_page) ret.add("achievements");
+					else ret.delete("achievements");
 				}
-				return component;
+				return ret;
 			});
 		}
 	});
@@ -299,6 +281,7 @@ export default definePlugin(function ()
 	});
 
 	mountManager.addMount(patchAppPage(state));
+	mountManager.addMount(patchAchievementsPage(state));
 
 	mountManager.addMount({
 		mount: async function (): Promise<void>
