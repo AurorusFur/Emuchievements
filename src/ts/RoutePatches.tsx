@@ -1,26 +1,26 @@
-import { RoutePatch, ServerAPI } from "decky-frontend-lib";
+import { RoutePatch, routerHook } from "@decky/api";
 import { Mountable } from "./System";
 import { EmuchievementsState } from "./hooks/achievementsContext";
 import { ReactElement } from "react";
 
-function routePatch(serverAPI: ServerAPI, path: string, patch: RoutePatch): Mountable
+function routePatch(path: string, patch: RoutePatch): Mountable
 {
 	return {
 		mount()
 		{
-			serverAPI.routerHook.addPatch(path, patch);
+			routerHook.addPatch(path, patch);
 		},
 		unMount()
 		{
-			serverAPI.routerHook.removePatch(path, patch);
+			routerHook.removePatch(path, patch);
 		}
 	};
 }
 
-export function patchAppPage(state: EmuchievementsState): Mountable
+export function patchAppPage(_state: EmuchievementsState): Mountable
 {
 	// @ts-ignore
-	return routePatch(state.serverAPI, "/library/app/:appid", (props: { path: string, children: ReactElement; }) =>
+	return routePatch("/library/app/:appid", (props: { path: string, children: ReactElement; }) =>
 	{
 		return props;
 	});

@@ -12,9 +12,25 @@ import {createPathTransform} from "rollup-sourcemap-path-transform";
 
 const production = process.env["RELEASE_TYPE"] !== 'development'
 
+// @decky/api bundles itself but needs @decky/manifest to supply plugin name+version
+function deckyManifest() {
+	return {
+		name: 'decky-manifest',
+		resolveId(id) {
+			if (id === '@decky/manifest') return '\0@decky/manifest';
+		},
+		load(id) {
+			if (id === '\0@decky/manifest') {
+				return `const manifest = { name: ${JSON.stringify(name)}, version: ${JSON.stringify(version)} }; export const name = manifest.name; export const version = manifest.version; export default manifest;`;
+			}
+		}
+	};
+}
+
 export default defineConfig({
 	input: './src/ts/index.tsx',
 	plugins: [
+		deckyManifest(),
 		commonjs(),
 		nodeResolve({browser: true}),
 		typescript({ sourceMap: !production, inlineSources: !production }),
@@ -30,7 +46,7 @@ export default defineConfig({
 
 	],
 	context: 'window',
-	external: ['react', 'react-dom', 'decky-frontend-lib'],
+	external: ['react', 'react-dom', '@decky/ui'],
 	output: {
 		file: 'dist/index.js',
 		sourcemap: !production ? 'inline' : false,
@@ -45,7 +61,7 @@ export default defineConfig({
 		globals: {
 			react: 'SP_REACT',
 			'react-dom': 'SP_REACTDOM',
-			'decky-frontend-lib': 'DFL'
+			'@decky/ui': 'DFL',
 		},
 		format: 'iife',
 		exports: 'default',

@@ -1,4 +1,4 @@
-import { ServerAPI } from "decky-frontend-lib";
+import { call, fetchNoCors, toaster } from "@decky/api";
 import { createContext, FC, ReactNode, useContext, useEffect, useState } from "react";
 import { AchievementManager, Manager } from "../AchievementsManager";
 import { getAllNonSteamAppOverview } from "../steam-utils";
@@ -41,11 +41,10 @@ interface EmuchievementsStateContext
 	loadingData: LoadingData,
 	managers: Managers,
 	apps: Promise<number[]>,
-	serverAPI: ServerAPI,
 	settings: Settings,
 	loggedIn: Promise<boolean>,
 	refresh(): Promise<void>,
-	login(login: Login): Promise<void>;
+	login(login: Login): Promise<boolean>;
 }
 
 
@@ -158,13 +157,11 @@ export class EmuchievementsState
 		}
 	}(this);
 
-	private readonly _serverAPI;
 	private readonly _settings;
 
-	constructor(serverAPI: ServerAPI)
+	constructor()
 	{
-		this._serverAPI = serverAPI;
-		this._settings = new Settings(serverAPI, this);
+		this._settings = new Settings(this);
 	}
 
 	private readonly _managers: Managers = {
@@ -179,11 +176,10 @@ export class EmuchievementsState
 			loadingData: this.loadingData,
 			managers: this.managers,
 			apps: this.apps,
-			serverAPI: this.serverAPI,
 			settings: this.settings,
 			loggedIn: this.loggedIn,
 			refresh: () => this.refresh(),
-			login: (login: Login) => this.login(login)
+			login: (login: Login) => this.login(login),
 		};
 	}
 
@@ -218,11 +214,6 @@ export class EmuchievementsState
 		)();
 	}
 
-	get serverAPI(): ServerAPI
-	{
-		return this._serverAPI;
-	}
-
 	get settings(): Settings
 	{
 		return this._settings;
@@ -233,12 +224,30 @@ export class EmuchievementsState
 		return (async () =>
 		{
 			if (this._login === true) return true;
-			const authenticated = await this.serverAPI.fetchNoCors<{ body: string; status: number; }>(`https://retroachievements.org/API/API_GetAchievementOfTheWeek.php?z=${this.settings.retroachievements.username}&y=${this.settings.retroachievements.api_key}`);
-			if (authenticated.success)
+			const { logged_in, username, api_key } = this.settings.retroachievements;
+			toaster.toast({ title: "DBG loggedIn", body: `_login=${this._login} persisted=${logged_in} user="${username}" keyLen=${api_key?.length ?? 0}` });
+			if (logged_in && username && api_key)
 			{
-				this._login = authenticated.result.status === 200 && authenticated.result.body !== "Invalid API Key";
-				if (this._login) await this.settings.writeSettings();
-				return this._login;
+				this._login = true;
+				toaster.toast({ title: "DBG loggedIn", body: "Using persisted session" });
+				return true;
+			}
+			const url = `https://retroachievements.org/API/API_GetAchievementOfTheWeek.php?z=${username}&y=${api_key}`;
+			try
+			{
+				const authenticated = await fetchNoCors(url);
+				toaster.toast({ title: "DBG loggedIn", body: `API status=${authenticated.status} ok=${authenticated.ok}` });
+				if (authenticated.ok)
+				{
+					const body = await authenticated.text();
+					this._login = !body.includes("Invalid API Key");
+					this.settings.retroachievements.logged_in = this._login;
+					toaster.toast({ title: "DBG loggedIn", body: `result=${this._login} body="${body?.substring(0, 100)}"` });
+					if (this._login) await this.settings.writeSettings();
+					return this._login;
+				}
+			} catch (e: any) {
+				toaster.toast({ title: "DBG loggedIn", body: `fetch error: ${e?.message ?? e}` });
 			}
 			return false;
 		})();
@@ -264,7 +273,7 @@ export class EmuchievementsState
 		{
 			this.notifyUpdate();
 		});
-		await this.serverAPI.callPluginMethod<{}, void>("reset", {});
+		await call("reset");
 
 	}
 
@@ -279,12 +288,13 @@ export class EmuchievementsState
 		});
 	}
 
-	async login({ username, api_key }: Login): Promise<void>
+	async login({ username, api_key }: Login): Promise<boolean>
 	{
 		this._login = false;
+		this.settings.retroachievements.logged_in = false;
 		this.settings.retroachievements.username = username;
 		this.settings.retroachievements.api_key = api_key;
-		this.loggedIn;
+		return this.loggedIn;
 	}
 
 	notifyUpdate(): void

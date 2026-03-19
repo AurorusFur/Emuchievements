@@ -3,14 +3,13 @@ import
 	afterPatch,
 	beforePatch,
 	callOriginal,
-	definePlugin,
 	findModuleChild,
 	Patch,
 	replacePatch,
 	Router,
-	ServerAPI,
 	staticClasses
-} from "decky-frontend-lib";
+} from "@decky/ui";
+import { definePlugin, routerHook, toaster } from "@decky/api";
 import { FaClipboardCheck } from "react-icons/fa";
 import { SettingsComponent } from "./components/settingsComponent";
 import { EmuchievementsComponent } from "./components/emuchievementsComponent";
@@ -68,10 +67,13 @@ const AppDetailsSections = findModuleChild((m) =>
 	if (typeof m !== 'object') return;
 	for (const prop in m)
 	{
-		if (
-			m[prop]?.toString &&
-			m[prop].toString().includes("m_setSectionsMemo")
-		) return m[prop];
+		try
+		{
+			if (
+				typeof m[prop] === 'function' &&
+				m[prop].toString().includes("m_setSectionsMemo")
+			) return m[prop];
+		} catch (_) {}
 	}
 	return;
 });
@@ -81,7 +83,10 @@ const Achievements = (findModuleChild(module =>
 	if (typeof module !== 'object') return undefined;
 	for (let prop in module)
 	{
-		if (module[prop]?.m_mapMyAchievements) return module[prop];
+		try
+		{
+			if (module[prop]?.m_mapMyAchievements) return module[prop];
+		} catch (_) {}
 	}
 }));
 
@@ -90,17 +95,18 @@ interface Hook
 	unregister(): void;
 }
 
-export default definePlugin(function (serverAPI: ServerAPI)
+export default definePlugin(function ()
 {
 	const t = getTranslateFunc();
 	const logger = new Logger("Index");
-	const state = new EmuchievementsState(serverAPI);
+	const state = new EmuchievementsState();
 	let lifetimeHook: Hook;
 
 	const eventBus = new EventBus();
-	const mountManager = new MountManager(eventBus, logger, serverAPI);
+	const mountManager = new MountManager(eventBus, logger);
 
 	logger.debug(Achievements);
+	toaster.toast({ title: "DBG init", body: `AppDetailsSections=${!!AppDetailsSections} Achievements=${!!Achievements}` });
 
 	mountManager.addPageMount("/emuchievements/settings", () =>
 		<EmuchievementsStateContextProvider emuchievementsState={state}>
@@ -239,29 +245,30 @@ export default definePlugin(function (serverAPI: ServerAPI)
 	mountManager.addPatchMount({
 		patch(): Patch
 		{
-			return afterPatch(AppDetailsSections.prototype, 'render', (_: Record<string, unknown>[], component: any) =>
+			return afterPatch(AppDetailsSections?.prototype, 'render', (_: Record<string, unknown>[], component: any) =>
 			{
+				if (!component?._owner?.pendingProps) return component;
 				const overview: SteamAppOverview = component._owner.pendingProps.overview;
+				if (!overview) return component;
 				// const details: SteamAppDetails = component._owner.pendingProps.details;
 				logger.debug(component._owner.pendingProps);
+				toaster.toast({ title: "DBG render", body: `appid=${overview.appid} type=${overview.app_type} hasProto=${!!component._owner.type?.prototype}` });
 				if (overview.app_type === 1073741824)
 				{
-					if (state.managers.achievementManager.isReady(overview.appid))
+					if (component._owner.type?.prototype)
 					{
-						// void state.managers.achievementManager.set_achievements_for_details(overview.appid, details)
-						logger.debug("proto", component._owner.type.prototype);
 						afterPatch(
 							component._owner.type.prototype,
 							"GetSections",
 							(_: Record<string, unknown>[], ret3: Set<string>) =>
 							{
-								if (state.settings.general.game_page && state.managers.achievementManager.isReady(overview.appid)) ret3.add("achievements");
+								const ready = state.managers.achievementManager.isReady(overview.appid);
+								toaster.toast({ title: "DBG GetSections", body: `appid=${overview.appid} ready=${ready} game_page=${state.settings.general.game_page} sections=${[...ret3].join(',')}` });
+								if (state.settings.general.game_page && ready) ret3.add("achievements");
 								else ret3.delete("achievements");
-								logger.debug(`${overview.appid} Sections: `, ret3);
 								return ret3;
 							}
 						);
-
 					}
 				}
 				return component;
@@ -300,12 +307,12 @@ export default definePlugin(function (serverAPI: ServerAPI)
 	mountManager.addMount({
 		mount: async function (): Promise<void>
 		{
-			if (await checkOnlineStatus(serverAPI))
+			if (await checkOnlineStatus())
 			{
 				await state.init();
 			} else
 			{
-				await waitForOnline(serverAPI);
+				await waitForOnline();
 				await state.init();
 			}
 		},
@@ -319,7 +326,8 @@ export default definePlugin(function (serverAPI: ServerAPI)
 
 	//console.log(d);
 	return {
-		title: <div className={staticClasses.Title}>{t("title")}</div>,
+		name: t("title"),
+		titleView: <div className={staticClasses.Title}>{t("title")}</div>,
 		content:
 			<EmuchievementsStateContextProvider emuchievementsState={state}>
 				<EmuchievementsComponent />
@@ -327,7 +335,7 @@ export default definePlugin(function (serverAPI: ServerAPI)
 		icon: <FaClipboardCheck />,
 		onDismount()
 		{
-			serverAPI.routerHook.removeRoute("/emuchievements/settings");
+			routerHook.removeRoute("/emuchievements/settings");
 			unregister();
 		},
 	};

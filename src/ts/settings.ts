@@ -1,5 +1,6 @@
 import {Mutex} from "async-mutex";
-import {findInTree, ServerAPI} from "decky-frontend-lib";
+import {findInTree} from "@decky/ui";
+import { call, toaster } from "@decky/api";
 import {EmuchievementsState} from "./hooks/achievementsContext";
 import Logger from "./logger";
 import {getTranslateFunc} from "./useTranslations";
@@ -14,6 +15,7 @@ export type SettingsData = {
 export type RetroAchievementsData = {
 	username: string,
 	api_key: string,
+	logged_in?: boolean,
 };
 
 export type CustomIdsOverrides = {
@@ -87,7 +89,6 @@ const findOldConfigKey = (config: any, search: string): any =>
 
 export class Settings
 {
-	private readonly serverAPI: ServerAPI;
 	private readonly state: EmuchievementsState;
 	private readonly logger: Logger = new Logger("Settings");
 	private readonly mutex: Mutex = new Mutex();
@@ -125,10 +126,9 @@ export class Settings
 	}
 
 
-	constructor(serverAPI: ServerAPI, state: EmuchievementsState)
+	constructor(state: EmuchievementsState)
 	{
 		this.state = state;
-		this.serverAPI = serverAPI;
 	}
 
 	set<T extends keyof SettingsData>(key: T, value: SettingsData[T])
@@ -158,36 +158,27 @@ export class Settings
 
 	async readSettings(): Promise<void>
 	{
+		toaster.toast({ title: "DBG readSettings", body: "called" });
+		let needsWrite = false;
 		const release = await this.mutex.acquire();
-		let buffer = "";
-		let length = 0;
-		const startResponse = await this.serverAPI.callPluginMethod<{ packet_size?: number; }, number>(
-			   "start_read_config",
-			   {packet_size: this.packet_size});
-		if (startResponse.success)
+		try
 		{
-			length = startResponse.result;
+			let buffer = "";
+			let length: number;
+			try { length = await call<[number], number>("start_read_config", this.packet_size); } catch(e: any) { toaster.toast({ title: "DBG readSettings", body: `${e?.pythonTraceback ?? e?.message ?? String(e)}`.substring(0, 200) }); throw e; }
 			for (let i = 0; i < length; i++)
 			{
-				const response = await this.serverAPI.callPluginMethod<{
-					index: number;
-				}, string>("read_config", {index: i});
-				if (response.success)
-				{
-					buffer += response.result;
-				} else
-				{
-					release();
-					throw new Error(response.result);
-				}
+				buffer += await call<[number], string>("read_config", i);
 			}
-			release();
 			this.logger.debug("readSettings", buffer);
-			let data: SettingsData = JSON.parse(buffer);
+			toaster.toast({ title: "DBG readSettings", body: `bufLen=${buffer.length} buf0="${buffer.substring(0,50)}"` });
+			let data: SettingsData;
+			try { data = JSON.parse(buffer); } catch(e: any) { toaster.toast({ title: "DBG readSettings", body: `JSON.parse error: ${e.message}` }); throw e; }
+			toaster.toast({ title: "DBG readSettings", body: `ver=${data.config_version} logged_in=${(data.retroachievements as any)?.logged_in} user="${data.retroachievements?.username}"` });
 			if (data.config_version !== CONFIG_VERSION)
 			{
 				const t = getTranslateFunc();
-				this.serverAPI.toaster.toast({
+				toaster.toast({
 					title: t("title"),
 					body: t("settingsReset")
 				});
@@ -200,47 +191,35 @@ export class Settings
 				this.data.retroachievements.username = username
 				this.data.retroachievements.api_key = api_key
 
-				await this.writeSettings();
+				needsWrite = true;
 			} else
 			{
 				this.data = data;
 			}
-		} else
+		} finally
 		{
 			release();
-			throw new Error(startResponse.result);
 		}
+		if (needsWrite) await this.writeSettings();
 	}
 
 	async writeSettings(): Promise<void>
 	{
 		const release = await this.mutex.acquire();
-		const buffer = JSON.stringify(this.data, undefined, "\t");
-		const length = Math.ceil(buffer.length / this.packet_size);
-		const startResponse = await this.serverAPI.callPluginMethod<{
-			length: number,
-			packet_size?: number;
-		}, void>("start_write_config", {length: length, packet_size: this.packet_size});
-		if (startResponse.success)
+		try
 		{
+			const buffer = JSON.stringify(this.data, undefined, "\t");
+			toaster.toast({ title: "DBG writeSettings", body: `logged_in=${this.data.retroachievements.logged_in} user="${this.data.retroachievements.username}"` });
+			const length = Math.ceil(buffer.length / this.packet_size);
+			await call<[number, number], void>("start_write_config", length, this.packet_size);
 			for (let i = 0; i < length; i++)
 			{
 				const data = buffer.slice(i * this.packet_size, (i + 1) * this.packet_size);
-				const response = await this.serverAPI.callPluginMethod<{
-					index: number,
-					data: string;
-				}, void>("write_config", {index: i, data: data});
-				if (!response.success)
-				{
-					release();
-					throw new Error(response.result);
-				}
+				await call<[number, string], void>("write_config", i, data);
 			}
-			release();
-		} else
+		} finally
 		{
 			release();
-			throw new Error(startResponse.result);
 		}
 	}
 }

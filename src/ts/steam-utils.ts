@@ -1,4 +1,5 @@
-import { ServerAPI, sleep } from "decky-frontend-lib";
+import { sleep } from "@decky/ui";
+import { fetchNoCors } from "@decky/api";
 import { SteamAppDetails, SteamAppOverview } from "./SteamTypes";
 import { Promise } from "bluebird";
 
@@ -163,21 +164,21 @@ export async function showApp(appId: number)
 	return false;
 }
 
-export async function checkOnlineStatus(serverAPI: ServerAPI)
+export async function checkOnlineStatus()
 {
 	try
 	{
-		const online = await serverAPI.fetchNoCors<{ body: string; status: number; }>("https://example.com");
-		return online.success && online.result.status >= 200; // either true or false
+		const online = await fetchNoCors("https://example.com");
+		return online.status >= 200; // either true or false
 	} catch (err)
 	{
 		return false; // definitely offline
 	}
 }
 
-export async function waitForOnline(serverAPI: ServerAPI)
+export async function waitForOnline()
 {
-	while (!(await checkOnlineStatus(serverAPI)))
+	while (!(await checkOnlineStatus()))
 	{
 		await sleep(1000);
 	}
