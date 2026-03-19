@@ -22,7 +22,8 @@
 	],
 	"author": "Witherking25 'Kernel Panic' <witherking@withertech.com>",
 	"contributors": [
-		"mrosenbergtech"
+		"mrosenbergtech",
+		"AurorusFur"
 	],
 	"license": "GPL-3",
 	"bugs": {
