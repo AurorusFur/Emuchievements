@@ -2,7 +2,6 @@ import json
 import logging
 import math
 import os
-import stat
 import subprocess
 import decky_plugin
 
@@ -92,10 +91,6 @@ class Plugin:
 
 	# Asyncio-compatible long-running code, executed in a task when the plugin is loaded
 	async def _main(self):
-		hash_path = os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash")
-		if os.path.exists(hash_path):
-			os.chmod(hash_path, os.stat(hash_path).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
 		if not os.path.exists(os.path.join(decky_plugin.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")):
 			with open(os.path.join(decky_plugin.DECKY_PLUGIN_SETTINGS_DIR, "settings.json"), "w") as f:
 				json.dump({
