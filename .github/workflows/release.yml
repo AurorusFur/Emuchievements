@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v2.0.7)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build backend
+        run: |
+          mkdir -p backend/out
+          docker build -t emuchievements-backend backend/
+          docker run --rm \
+            -v "${{ github.workspace }}/backend:/backend" \
+            -v "${{ github.workspace }}:/plugin" \
+            emuchievements-backend
+
+      - name: Package zip
+        run: |
+          mkdir -p /tmp/EmuPkg/Emuchievements/dist
+          mkdir -p /tmp/EmuPkg/Emuchievements/backend
+          cp dist/index.js              /tmp/EmuPkg/Emuchievements/dist/index.js
+          cp src/py/main.py             /tmp/EmuPkg/Emuchievements/main.py
+          cp plugin.json                /tmp/EmuPkg/Emuchievements/plugin.json
+          cp package.json               /tmp/EmuPkg/Emuchievements/package.json
+          cp backend/out/hash           /tmp/EmuPkg/Emuchievements/backend/hash
+          cd /tmp/EmuPkg
+          zip -r "${{ github.workspace }}/Emuchievements.zip" Emuchievements/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          files: Emuchievements.zip
