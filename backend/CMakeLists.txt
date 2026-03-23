@@ -12,6 +12,10 @@ set(RCHEEVOS_SOURCE
         src/rcheevos/src/rhash/cdreader.c
         src/rcheevos/src/rhash/aes.c
         src/rcheevos/src/rhash/hash.c
+        src/rcheevos/src/rhash/hash_disc.c
+        src/rcheevos/src/rhash/hash_encrypted.c
+        src/rcheevos/src/rhash/hash_rom.c
+        src/rcheevos/src/rhash/hash_zip.c
         src/rcheevos/src/rhash/md5.c
 )
 

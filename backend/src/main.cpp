@@ -1,9 +1,12 @@
 #include <iostream>
 #include <filesystem>
 #include <map>
+#include <cstdlib>
+#include <unistd.h>
 
 #include "HashCHD.h"
 #include "rc_hash.h"
+#include "rc_consoles.h"
 #include "util.h"
 
 bool has_extension(const std::filesystem::path &path, const std::string &findExt)
@@ -42,6 +45,52 @@ std::string hash_file(const std::filesystem::path &path)
 	return hash;
 }
 
+// Returns the flatpak app ID of an installed dolphin-tool, or empty string if none found.
+std::string find_dolphin_flatpak()
+{
+	static const char* candidates[] = {
+		"org.DolphinEmu.dolphin-emu",
+		"io.github.shiiion.primehack",
+		nullptr
+	};
+
+	for (int i = 0; candidates[i]; ++i)
+	{
+		std::string check = "/usr/bin/flatpak info ";
+		check += candidates[i];
+		check += " >/dev/null 2>&1";
+		if (std::system(check.c_str()) == 0)
+			return candidates[i];
+	}
+
+	return "";
+}
+
+std::string hash_dolphin_format(const std::filesystem::path &path)
+{
+	std::string app_id = find_dolphin_flatpak();
+	if (app_id.empty())
+		return "";
+
+	std::filesystem::path temp_iso = std::filesystem::path("/home/deck") /
+		("emuchievements_" + std::to_string(getpid()) + ".iso");
+
+	std::string cmd = "/usr/bin/flatpak run --filesystem=/home --command=dolphin-tool "
+		+ app_id + " convert -f iso -i \""
+		+ path.string() + "\" -o \"" + temp_iso.string() + "\" >/dev/null 2>&1";
+
+	std::system(cmd.c_str());
+
+	if (!std::filesystem::exists(temp_iso))
+		return "";
+
+	char buf[33] = {};
+	rc_hash_init_default_cdreader();
+	rc_hash_generate_from_file(buf, RC_CONSOLE_WII, temp_iso.c_str());
+	std::filesystem::remove(temp_iso);
+	return std::string(buf);
+}
+
 std::string hash(const std::filesystem::path &path)
 {
 	std::string hash;
@@ -58,7 +107,14 @@ std::string hash(const std::filesystem::path &path)
 			hash = hash_file(path);
 			std::filesystem::remove_all(extracted);
 		}
-		return hash;	
+		return hash;
+	}
+	// Dolphin compressed formats - convert to ISO first, then hash as Wii
+	else if (has_extension(path, "rvz") || has_extension(path, "gcz") ||
+	         has_extension(path, "wbfs") || has_extension(path, "wia"))
+	{
+		hash = hash_dolphin_format(path);
+		return hash;
 	}
 	// Other - Just Hash The File (Includes .iso, etc.)
 	else
