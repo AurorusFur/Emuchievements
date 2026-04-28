@@ -82,7 +82,7 @@ bool is_wii_disc(const std::filesystem::path &path, const std::string &app_id)
 		output += buffer;
 	pclose(pipe);
 
-	return output.find("Wii: Yes") != std::string::npos;
+	return output.find("Title ID:") != std::string::npos;
 }
 
 std::string hash_dolphin_format(const std::filesystem::path &path)
