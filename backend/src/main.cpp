@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <map>
 #include <cstdlib>
+#include <cstdio>
 #include <unistd.h>
 
 #include "HashCHD.h"
@@ -66,6 +67,24 @@ std::string find_dolphin_flatpak()
 	return "";
 }
 
+bool is_wii_disc(const std::filesystem::path &path, const std::string &app_id)
+{
+	std::string cmd = "/usr/bin/flatpak run --filesystem=/home --command=dolphin-tool "
+		+ app_id + " header -i \"" + path.string() + "\" 2>/dev/null";
+
+	FILE *pipe = popen(cmd.c_str(), "r");
+	if (!pipe)
+		return true; // default to Wii if detection fails
+
+	char buffer[256];
+	std::string output;
+	while (fgets(buffer, sizeof(buffer), pipe))
+		output += buffer;
+	pclose(pipe);
+
+	return output.find("Wii: Yes") != std::string::npos;
+}
+
 std::string hash_dolphin_format(const std::filesystem::path &path)
 {
 	std::string app_id = find_dolphin_flatpak();
@@ -74,6 +93,8 @@ std::string hash_dolphin_format(const std::filesystem::path &path)
 
 	std::filesystem::path temp_iso = std::filesystem::path("/home/deck") /
 		("emuchievements_" + std::to_string(getpid()) + ".iso");
+
+	bool wii = is_wii_disc(path, app_id);
 
 	std::string cmd = "/usr/bin/flatpak run --filesystem=/home --command=dolphin-tool "
 		+ app_id + " convert -f iso -i \""
@@ -86,7 +107,7 @@ std::string hash_dolphin_format(const std::filesystem::path &path)
 
 	char buf[33] = {};
 	rc_hash_init_default_cdreader();
-	rc_hash_generate_from_file(buf, RC_CONSOLE_WII, temp_iso.c_str());
+	rc_hash_generate_from_file(buf, wii ? RC_CONSOLE_WII : RC_CONSOLE_GAMECUBE, temp_iso.c_str());
 	std::filesystem::remove(temp_iso);
 	return std::string(buf);
 }

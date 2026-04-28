@@ -80,8 +80,15 @@ class Plugin:
 			check=True  # This raises an exception if the command fails
 		)
 
-		# Return the stripped output
-		return result.stdout.strip()
+			# Return the stripped output
+			hash_result = result.stdout.strip()
+			logger.debug(f"Hash result for {path}: {hash_result}")
+			return hash_result
+		except subprocess.CalledProcessError as e:
+			logger.error(f"Error hashing ROM {path}: exit {e.returncode}, stderr: {e.stderr.strip()}")
+		except Exception as e:
+			logger.error(f"Error hashing ROM {path}: {e}")
+			raise
 
 	
 	async def reset(self) -> None:
