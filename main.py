@@ -62,26 +62,34 @@ class Plugin:
 		# return os.popen(
 		# 	f"'{os.path.join(decky_plugin.DECKY_PLUGIN_DIR, 'bin', 'hash')}' \"{path}\"").read().strip()
 
-		# Fix PyInstaller Library Issue as Per: https://github.com/xXJSONDeruloXx/Decky-Framegen/
-		clean_env = os.environ.copy()
-		clean_env["LD_LIBRARY_PATH"] = ""
+		logger.debug(f"Hashing ROM: {path}")
+		try:
+			# Fix PyInstaller Library Issue as Per: https://github.com/xXJSONDeruloXx/Decky-Framegen/
+			clean_env = os.environ.copy()
+			clean_env["LD_LIBRARY_PATH"] = ""
 
-		cmd = [
-			os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash"),
-			path
-		]
-    
-		# Run the command and capture its output
-		result = subprocess.run(
-			cmd,
-			env=clean_env,
-			capture_output=True,
-			text=True,  # This decodes stdout and stderr as strings
-			check=True  # This raises an exception if the command fails
-		)
+			hash_bin = os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash")
 
-		# Return the stripped output
-		return result.stdout.strip()
+			cmd = [hash_bin, path]
+
+			# Run the command and capture its output
+			result = subprocess.run(
+				cmd,
+				env=clean_env,
+				capture_output=True,
+				text=True,  # This decodes stdout and stderr as strings
+				check=True  # This raises an exception if the command fails
+			)
+
+			# Return the stripped output
+			hash_result = result.stdout.strip()
+			logger.debug(f"Hash result for {path}: {hash_result}")
+			return hash_result
+		except subprocess.CalledProcessError as e:
+			logger.error(f"Error hashing ROM {path}: exit {e.returncode}, stderr: {e.stderr.strip()}")
+		except Exception as e:
+			logger.error(f"Error hashing ROM {path}: {e}")
+			raise
 
 	
 	async def reset(self) -> None:
