@@ -24,7 +24,7 @@ import
 } from "./SteamTypes";
 import { checkOnlineStatus, waitForOnline } from "./steam-utils";
 import { EventBus, MountManager } from "./System";
-import { patchAppPage, patchAchievementsPage } from "./RoutePatches";
+import { patchAppPage } from "./RoutePatches";
 import { runInAction } from "mobx";
 import { getTranslateFunc } from "./useTranslations";
 import { GameListComponent } from "./components/gameListComponent";
@@ -281,7 +281,6 @@ export default definePlugin(function ()
 	});
 
 	mountManager.addMount(patchAppPage(state));
-	mountManager.addMount(patchAchievementsPage(state));
 
 	mountManager.addMount({
 		mount: async function (): Promise<void>

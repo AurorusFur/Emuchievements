@@ -85,6 +85,8 @@ class Plugin:
 			hash_result = result.stdout.strip()
 			logger.debug(f"Hash result for {path}: {hash_result}")
 			return hash_result
+		except subprocess.CalledProcessError as e:
+			logger.error(f"Error hashing ROM {path}: exit {e.returncode}, stderr: {e.stderr.strip()}")
 		except Exception as e:
 			logger.error(f"Error hashing ROM {path}: {e}")
 			raise
