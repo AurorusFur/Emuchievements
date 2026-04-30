@@ -72,16 +72,13 @@ class Plugin:
 
 			cmd = [hash_bin, path]
 
-			# Run the command and capture its output
 			result = subprocess.run(
 				cmd,
 				env=clean_env,
 				capture_output=True,
-				text=True,  # This decodes stdout and stderr as strings
-				check=True  # This raises an exception if the command fails
+				text=True,
+				check=True
 			)
-
-			# Return the stripped output
 			hash_result = result.stdout.strip()
 			logger.debug(f"Hash result for {path}: {hash_result}")
 			return hash_result
@@ -92,6 +89,14 @@ class Plugin:
 			raise
 
 	
+	async def log_frontend(self, level: str, message: str) -> None:
+		if level == "error":
+			logger.error(f"[frontend] {message}")
+		elif level == "warn":
+			logger.warning(f"[frontend] {message}")
+		else:
+			logger.info(f"[frontend] {message}")
+
 	async def reset(self) -> None:
 		Plugin.length = 0
 		Plugin.buffer = ""

@@ -1,4 +1,7 @@
 import { call, fetchNoCors } from "@decky/api";
+
+const flog = (level: "info" | "warn" | "error", message: string) =>
+	call<[string, string], void>("log_frontend", level, message).catch(() => {});
 import { createContext, FC, ReactNode, useContext, useEffect, useState } from "react";
 import { AchievementManager, Manager } from "../AchievementsManager";
 import { getAllNonSteamAppOverview } from "../steam-utils";
@@ -231,18 +234,18 @@ export class EmuchievementsState
 				return true;
 			}
 			const url = `https://retroachievements.org/API/API_GetAchievementOfTheWeek.php?z=${username}&y=${api_key}`;
+			flog("info", `Login attempt for user: ${username}`);
 			try
 			{
 				const authenticated = await fetchNoCors(url);
-				if (authenticated.ok)
-				{
-					const body = await authenticated.text();
-					this._login = !body.includes("Invalid API Key");
-					this.settings.retroachievements.logged_in = this._login;
-					if (this._login) await this.settings.writeSettings();
-					return this._login;
-				}
+				flog("info", `Login response: status=${authenticated.status} ok=${authenticated.ok}`);
+				this._login = authenticated.ok && authenticated.status !== 401;
+				this.settings.retroachievements.logged_in = this._login;
+				if (this._login) await this.settings.writeSettings();
+				flog(this._login ? "info" : "warn", `Login result: ${this._login ? "success" : "failed"}`);
+				return this._login;
 			} catch (e: any) {
+				flog("error", `Login request threw: ${e?.message ?? String(e)}`);
 			}
 			return false;
 		})();

@@ -332,8 +332,11 @@ export class AchievementManager implements Manager
 							this.customIdsOverrides[app_id].hash = appMd5Hash;
 						}
 
-						this.ids[app_id] = this.hashes[hash];
-					}
+						const resolvedId = this.hashes[hash];
+							if (resolvedId) {
+								this.ids[app_id] = resolvedId;
+							}
+						}
 
 					await this.saveCache();
 				} else {
@@ -346,8 +349,13 @@ export class AchievementManager implements Manager
 						return undefined;
 					} else
 					{
-						this.ids[app_id] = this.hashes[md5];
+						const gameId = this.hashes[md5];
+						this.ids[app_id] = gameId ?? null;
 						hash = md5;
+						if (gameId) {
+							this.customIdsOverrides[app_id].retro_achivement_game_id = gameId;
+							this.customIdsOverrides[app_id].hash = md5;
+						}
 						await this.saveCache();
 					}
 				}
