@@ -191,9 +191,18 @@ export class AchievementManager implements Manager
 	private cache: CacheData = {
 		ids: {},
 		custom_ids_overrides: {},
+		hashes: {},
 	};
 
-	private hashes: Record<string, number> = {};
+	private get hashes(): Record<string, number>
+	{
+		return this.cache.hashes ?? {};
+	}
+
+	private set hashes(value: Record<string, number>)
+	{
+		this.cache.hashes = value;
+	}
 
 	private get ids()
 	{
@@ -245,6 +254,7 @@ export class AchievementManager implements Manager
 
 		this.ids = {};
 		this.customIdsOverrides = {};
+		this.hashes = {};
 	}
 
 	public clearCacheForAppId(appId: number)
@@ -798,17 +808,21 @@ export class AchievementManager implements Manager
 	async init(): Promise<void>
 	{
 		await this.loadCache();
-		const response = await fetchNoCors("https://retroachievements.org/dorequest.php?r=hashlibrary", {
-			headers: {
-				"User-Agent": `Emuchievements/${process.env.VERSION} (+https://github.com/EmuDeck/Emuchievements)`,
-			},
-		});
-		if (response.ok)
+		if (Object.keys(this.hashes).length === 0)
 		{
-			const body = await response.text();
-			this.hashes = (
-				JSON.parse(body.toLowerCase()) as { md5list: Record<string, number>; }
-			).md5list;
+			const response = await fetchNoCors("https://retroachievements.org/dorequest.php?r=hashlibrary", {
+				headers: {
+					"User-Agent": `Emuchievements/${process.env.VERSION} (+https://github.com/EmuDeck/Emuchievements)`,
+				},
+			});
+			if (response.ok)
+			{
+				const body = await response.text();
+				this.hashes = (
+					JSON.parse(body.toLowerCase()) as { md5list: Record<string, number>; }
+				).md5list;
+				await this.saveCache();
+			}
 		}
 		await this.refresh();
 	}

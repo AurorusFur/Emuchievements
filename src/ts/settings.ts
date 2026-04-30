@@ -37,6 +37,7 @@ export type CustomIdsOverrides = {
 export type CacheData = {
 	ids: Record<number, number | null>,
 	custom_ids_overrides: Record<number, CustomIdsOverrides>,
+	hashes?: Record<string, number>,
 };
 
 export type GeneralData = {
