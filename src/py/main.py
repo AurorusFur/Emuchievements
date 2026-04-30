@@ -89,6 +89,13 @@ class Plugin:
 			raise
 
 	
+	async def hash_arcade(self, path: str) -> str:
+		stem = os.path.splitext(os.path.basename(path))[0]
+		import hashlib
+		result = hashlib.md5(stem.encode()).hexdigest()
+		logger.debug(f"Arcade hash for {path} (stem: {stem}): {result}")
+		return result
+
 	async def log_frontend(self, level: str, message: str) -> None:
 		if level == "error":
 			logger.error(f"[frontend] {message}")
