@@ -62,23 +62,24 @@ class Plugin:
 		# return os.popen(
 		# 	f"'{os.path.join(decky_plugin.DECKY_PLUGIN_DIR, 'bin', 'hash')}' \"{path}\"").read().strip()
 
-		# Fix PyInstaller Library Issue as Per: https://github.com/xXJSONDeruloXx/Decky-Framegen/
-		clean_env = os.environ.copy()
-		clean_env["LD_LIBRARY_PATH"] = ""
+		logger.debug(f"Hashing ROM: {path}")
+		try:
+			# Fix PyInstaller Library Issue as Per: https://github.com/xXJSONDeruloXx/Decky-Framegen/
+			clean_env = os.environ.copy()
+			clean_env["LD_LIBRARY_PATH"] = ""
 
-		hash_bin = os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash")
-		os.chmod(hash_bin, 0o755)
+			hash_bin = os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash")
 
-		cmd = [hash_bin, path]
+			cmd = [hash_bin, path]
 
-		# Run the command and capture its output
-		result = subprocess.run(
-			cmd,
-			env=clean_env,
-			capture_output=True,
-			text=True,  # This decodes stdout and stderr as strings
-			check=True  # This raises an exception if the command fails
-		)
+			# Run the command and capture its output
+			result = subprocess.run(
+				cmd,
+				env=clean_env,
+				capture_output=True,
+				text=True,  # This decodes stdout and stderr as strings
+				check=True  # This raises an exception if the command fails
+			)
 
 			# Return the stripped output
 			hash_result = result.stdout.strip()
@@ -96,8 +97,56 @@ class Plugin:
 		Plugin.buffer = ""
 		Plugin.packet_size = 1000
 
+	def _find_flatpak(self) -> str:
+		for candidate in ["/usr/bin/flatpak", "/usr/local/bin/flatpak", "/run/host/usr/bin/flatpak"]:
+			if os.path.isfile(candidate):
+				return candidate
+		try:
+			result = subprocess.run(["which", "flatpak"], capture_output=True, text=True)
+			if result.returncode == 0:
+				return result.stdout.strip()
+		except Exception:
+			pass
+		return ""
+
+	async def _log_tool_versions(self):
+		hash_bin = os.path.join(decky_plugin.DECKY_PLUGIN_DIR, "backend", "hash")
+		logger.info(f"Hash binary: {hash_bin} (exists: {os.path.exists(hash_bin)})")
+
+		flatpak = Plugin._find_flatpak(self)
+		if not flatpak:
+			logger.info("flatpak: not found")
+			return
+
+		logger.info(f"flatpak binary: {flatpak}")
+		deck_user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "deck"
+
+		try:
+			installed = subprocess.run(
+				["sudo", "-u", deck_user, flatpak, "list", "--app", "--columns=application"],
+				capture_output=True, text=True
+			).stdout.splitlines()
+		except Exception as e:
+			logger.debug(f"Could not list flatpaks: {e}")
+			installed = []
+
+		for flatpak_id in ["org.DolphinEmu.dolphin-emu", "io.github.shiiion.primehack"]:
+			if flatpak_id not in installed:
+				logger.info(f"Flatpak {flatpak_id}: not installed")
+				continue
+			try:
+				result = subprocess.run(
+					["sudo", "-u", deck_user, flatpak, "info", flatpak_id],
+					capture_output=True, text=True
+				)
+				version_line = next((l for l in result.stdout.splitlines() if "Version:" in l), None)
+				logger.info(f"Flatpak {flatpak_id}: {version_line.strip() if version_line else 'installed (version unknown)'}")
+			except Exception as e:
+				logger.debug(f"Could not get info for {flatpak_id}: {e}")
+
 	# Asyncio-compatible long-running code, executed in a task when the plugin is loaded
 	async def _main(self):
+		await Plugin._log_tool_versions(self)
 		if not os.path.exists(os.path.join(decky_plugin.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")):
 			with open(os.path.join(decky_plugin.DECKY_PLUGIN_SETTINGS_DIR, "settings.json"), "w") as f:
 				json.dump({
