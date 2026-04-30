@@ -1,6 +1,6 @@
 #include <iostream>
 #include <filesystem>
-#include <map>
+#include <regex>
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
@@ -67,14 +67,18 @@ std::string find_dolphin_flatpak()
 	return "";
 }
 
-bool is_wii_disc(const std::filesystem::path &path, const std::string &app_id)
+std::string hash_dolphin_format(const std::filesystem::path &path)
 {
-	std::string cmd = "/usr/bin/flatpak run --filesystem=/home --command=dolphin-tool "
-		+ app_id + " header -i \"" + path.string() + "\" 2>/dev/null";
+	std::string app_id = find_dolphin_flatpak();
+	if (app_id.empty())
+		return "";
+
+	std::string cmd = "/usr/bin/flatpak run --filesystem=host --command=dolphin-tool "
+		+ app_id + " verify -a rchash -i \"" + path.string() + "\" 2>/dev/null";
 
 	FILE *pipe = popen(cmd.c_str(), "r");
 	if (!pipe)
-		return true; // default to Wii if detection fails
+		return "";
 
 	char buffer[256];
 	std::string output;
@@ -82,34 +86,12 @@ bool is_wii_disc(const std::filesystem::path &path, const std::string &app_id)
 		output += buffer;
 	pclose(pipe);
 
-	return output.find("Title ID:") != std::string::npos;
-}
+	std::regex hash_regex("[0-9a-fA-F]{32}");
+	std::smatch match;
+	if (std::regex_search(output, match, hash_regex))
+		return match[0];
 
-std::string hash_dolphin_format(const std::filesystem::path &path)
-{
-	std::string app_id = find_dolphin_flatpak();
-	if (app_id.empty())
-		return "";
-
-	std::filesystem::path temp_iso = std::filesystem::path("/home/deck") /
-		("emuchievements_" + std::to_string(getpid()) + ".iso");
-
-	bool wii = is_wii_disc(path, app_id);
-
-	std::string cmd = "/usr/bin/flatpak run --filesystem=/home --command=dolphin-tool "
-		+ app_id + " convert -f iso -i \""
-		+ path.string() + "\" -o \"" + temp_iso.string() + "\" >/dev/null 2>&1";
-
-	std::system(cmd.c_str());
-
-	if (!std::filesystem::exists(temp_iso))
-		return "";
-
-	char buf[33] = {};
-	rc_hash_init_default_cdreader();
-	rc_hash_generate_from_file(buf, wii ? RC_CONSOLE_WII : RC_CONSOLE_GAMECUBE, temp_iso.c_str());
-	std::filesystem::remove(temp_iso);
-	return std::string(buf);
+	return "";
 }
 
 std::string hash(const std::filesystem::path &path)
@@ -130,7 +112,7 @@ std::string hash(const std::filesystem::path &path)
 		}
 		return hash;
 	}
-	// Dolphin compressed formats - convert to ISO first, then hash as Wii
+	// Dolphin compressed formats - use dolphin-tool verify to get RA hash directly
 	else if (has_extension(path, "rvz") || has_extension(path, "gcz") ||
 	         has_extension(path, "wbfs") || has_extension(path, "wia"))
 	{
