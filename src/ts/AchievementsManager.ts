@@ -340,8 +340,7 @@ export class AchievementManager implements Manager
 
 					await this.saveCache();
 				} else {
-					const isArcade = /\/(arcade|mame|fbneo|mame2003|mame2010|mame2015|mame2016|neogeo|cps1|cps2|cps3)\//i.test(rom);
-					const md5 = await call<[string], string>(isArcade ? "hash_arcade" : "hash", rom);
+					const md5 = await call<[string], string>("hash", rom);
 					this.logger.debug(`${app_id} md5: `, md5);
 					if (md5 === "")
 					{

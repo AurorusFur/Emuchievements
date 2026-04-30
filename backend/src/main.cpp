@@ -94,9 +94,30 @@ std::string hash_dolphin_format(const std::filesystem::path &path)
 	return "";
 }
 
+bool is_arcade_path(const std::filesystem::path &path)
+{
+	std::string s = path.parent_path().string();
+	for (auto &c: s) c = tolower(c);
+	static const char *dirs[] = {
+		"/arcade/", "/mame/", "/fbneo/", "/mame2003/", "/mame2010/",
+		"/mame2015/", "/mame2016/", "/neogeo/", "/cps1/", "/cps2/", "/cps3/",
+		nullptr
+	};
+	for (int i = 0; dirs[i]; ++i)
+		if (s.find(dirs[i]) != std::string::npos) return true;
+	return false;
+}
+
 std::string hash(const std::filesystem::path &path)
 {
 	std::string hash;
+	// Arcade - hash filename stem (case-sensitive)
+	if (is_arcade_path(path))
+	{
+		char buf[33];
+		rc_hash_generate_from_file(buf, RC_CONSOLE_ARCADE, path.c_str());
+		return std::string(buf);
+	}
 	// Archive Type - Extract
 	if (has_extension(path, "zip") || has_extension(path, "7z"))
 	{
