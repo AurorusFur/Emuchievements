@@ -4,11 +4,47 @@
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
+#include <algorithm>
+#include <cctype>
 
 #include "HashCHD.h"
 #include "rc_hash.h"
 #include "rc_consoles.h"
 #include "util.h"
+
+// Case-insensitive file open: tries exact path first, then scans the directory.
+// Fixes rcheevos failing to open .bin files on Linux when .cue references them
+// with different casing than the actual filename on disk.
+static void* ci_file_open(const char* path)
+{
+	FILE* f = fopen(path, "rb");
+	if (f) return f;
+
+	std::filesystem::path p(path);
+	auto dir = p.parent_path();
+	if (!std::filesystem::is_directory(dir)) return nullptr;
+
+	std::string target = p.filename().string();
+	std::string lower_target = target;
+	std::transform(lower_target.begin(), lower_target.end(), lower_target.begin(), ::tolower);
+
+	for (auto& entry : std::filesystem::directory_iterator(dir))
+	{
+		std::string name = entry.path().filename().string();
+		std::string lower_name = name;
+		std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+		if (lower_name == lower_target)
+			return fopen(entry.path().c_str(), "rb");
+	}
+	return nullptr;
+}
+
+static void ci_file_seek(void* handle, int64_t offset, int origin) { fseeko((FILE*)handle, offset, origin); }
+static int64_t ci_file_tell(void* handle) { return ftello((FILE*)handle); }
+static size_t ci_file_read(void* handle, void* buf, size_t n) { return fread(buf, 1, n, (FILE*)handle); }
+static void ci_file_close(void* handle) { fclose((FILE*)handle); }
+
+static rc_hash_filereader ci_reader = { ci_file_open, ci_file_seek, ci_file_tell, ci_file_read, ci_file_close };
 
 bool has_extension(const std::filesystem::path &path, const std::string &findExt)
 {
@@ -27,6 +63,7 @@ std::string hash_file(const std::filesystem::path &path)
 
 	auto *iterator = new rc_hash_iterator();
 
+	rc_hash_init_custom_filereader(&ci_reader);
 	if (has_extension(path, "chd"))
 	{
 		rc_hash_init_chd_cdreader();
