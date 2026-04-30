@@ -53,6 +53,7 @@ jobs:
           cp plugin.json                /tmp/EmuPkg/Emuchievements/plugin.json
           cp package.json               /tmp/EmuPkg/Emuchievements/package.json
           cp backend/out/hash           /tmp/EmuPkg/Emuchievements/backend/hash
+          chmod +x /tmp/EmuPkg/Emuchievements/backend/hash
           cd /tmp/EmuPkg
           zip -r "${{ github.workspace }}/Emuchievements.zip" Emuchievements/
 

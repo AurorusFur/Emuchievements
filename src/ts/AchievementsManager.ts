@@ -619,7 +619,9 @@ export class AchievementManager implements Manager
 					this.fetching = true;
 					this.clearRuntimeCache();
 
+					this.logger.log("Fetching non-Steam app IDs");
 					const allNonSteamAppIds = await getAllNonSteamAppIds();
+					this.logger.log(`Found ${allNonSteamAppIds.length} non-Steam apps`);
 					const nonSteamAppIdsWithRetroAchievementId = allNonSteamAppIds.filter((appId) => {
 							if (this.ids[appId] !== null) {
 								return true;
@@ -631,12 +633,16 @@ export class AchievementManager implements Manager
 
 							return false;
 						})
+					this.logger.log(`${nonSteamAppIdsWithRetroAchievementId.length} apps have RetroAchievements IDs`);
 
 					// NOTE: Checks for games what does not exists in user library and removes them from
 					//       `cache` configuration
 					const gameIdsToBeRemoved = Object.keys(this.customIdsOverrides)
 						.filter((appId) => !allNonSteamAppIds.includes(Number.parseInt(appId, 10)));
 
+					if (gameIdsToBeRemoved.length > 0) {
+						this.logger.log(`Removing ${gameIdsToBeRemoved.length} stale cache entries: ${gameIdsToBeRemoved.join(", ")}`);
+					}
 					for (const gameIdToBeRemoved of gameIdsToBeRemoved) {
 						const gameIdToBeRemovedAsNumber = Number.parseInt(gameIdToBeRemoved, 10);
 
@@ -667,6 +673,7 @@ export class AchievementManager implements Manager
 	{
 		try
 		{
+			this.logger.log(`Refreshing achievements for ${app_ids.length} apps`);
 			this.fetching = false;
 			this.total = app_ids.length;
 			this.processed = 0;
@@ -675,6 +682,7 @@ export class AchievementManager implements Manager
 				concurrency: 8,
 			});
 
+			this.logger.log("Finished refreshing achievements");
 			this.globalLoading = false;
 			this.game = this.t("fetching");
 			this.description = "";
@@ -716,6 +724,7 @@ export class AchievementManager implements Manager
 			});
 		} catch (e)
 		{
+			this.logger.error(e, `Error refreshing achievements for app ${app_id}`);
 			throw e;
 		}
 	}
@@ -776,6 +785,7 @@ export class AchievementManager implements Manager
 			};
 		} catch (e)
 		{
+			this.logger.error(e, `Error counting achievements for app ${app_id}`);
 			throw e;
 		}
 	}
