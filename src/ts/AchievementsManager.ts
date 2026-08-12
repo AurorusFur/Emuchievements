@@ -826,6 +826,16 @@ export class AchievementManager implements Manager
 	isReady(steamAppId: number): boolean
 	{
 		// this.logger.debug("isReady", steamAppId, this.achievements[steamAppId])
+		// NOTE: Gates the achievements store category (see BHasStoreCategory patch in index.tsx).
+		//       Visibility must not depend on `userAchievements`, which is runtime-only: it starts
+		//       empty every Steam launch and clearRuntimeCache() wipes it on every refresh, so a
+		//       correctly bound game loses its achievements tab until something happens to re-fetch
+		//       it. A known RetroAchievements id is the durable signal that the tab belongs there;
+		//       the payload behind it still loads lazily.
+		const gameId = this.ids[steamAppId];
+		if (typeof gameId === "number" && gameId !== 0)
+			return true;
+
 		return !!this.userAchievements[steamAppId] && !this.userAchievements[steamAppId].loading;
 	}
 }
