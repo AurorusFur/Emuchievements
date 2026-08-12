@@ -98,9 +98,11 @@ bool is_arcade_path(const std::filesystem::path &path)
 {
 	std::string s = path.parent_path().string();
 	for (auto &c: s) c = tolower(c);
+	s += '/';
 	static const char *dirs[] = {
 		"/arcade/", "/mame/", "/fbneo/", "/mame2003/", "/mame2010/",
 		"/mame2015/", "/mame2016/", "/neogeo/", "/cps1/", "/cps2/", "/cps3/",
+		"/atomiswave/", "/naomi/", "/naomi2/",
 		nullptr
 	};
 	for (int i = 0; dirs[i]; ++i)
@@ -111,11 +113,15 @@ bool is_arcade_path(const std::filesystem::path &path)
 std::string hash(const std::filesystem::path &path)
 {
 	std::string hash;
-	// Arcade - hash filename stem (case-sensitive)
+	// Arcade - MD5 of filename stem, case-sensitive (e.g. galaga.zip -> MD5("galaga")).
+	// Must go through _from_file: rc_hash_from_buffer has no RC_CONSOLE_ARCADE case, so
+	// the buffer variant fails without writing buf. _from_file reads only the path, never
+	// the file, and additionally handles fbneo subsystem folders (nes/, genesis/, ...).
 	if (is_arcade_path(path))
 	{
 		char buf[33];
-		rc_hash_generate_from_file(buf, RC_CONSOLE_ARCADE, path.c_str());
+		if (!rc_hash_generate_from_file(buf, RC_CONSOLE_ARCADE, path.c_str()))
+			return "";
 		return std::string(buf);
 	}
 	// Archive Type - Extract
