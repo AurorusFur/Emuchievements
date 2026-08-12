@@ -25,6 +25,7 @@ import { ReactMarkdown, ReactMarkdownOptions } from "react-markdown/lib/react-ma
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "../useTranslations";
 import { StyledButtonItem } from "./styleWrapper";
+import { FriendsSettings } from "./friendsSettingsComponent";
 
 interface MarkdownProps extends ReactMarkdownOptions
 {
@@ -367,6 +368,10 @@ export const SettingsComponent: VFC = () =>
 		{
 			title: t("settingsCustomIdsOverrides"),
 			content: <CustomIdsOverrides />,
+		},
+		{
+			title: t("settingsFriends"),
+			content: <FriendsSettings />,
 		}
 	]} />;
 };

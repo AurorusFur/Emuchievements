@@ -9,6 +9,13 @@ export type SettingsData = {
 	retroachievements: RetroAchievementsData,
 	cache: CacheData,
 	general: GeneralData,
+	/**
+	 * NOTE: Optional on purpose. `readSettings` wipes the whole config whenever `config_version`
+	 *       changes, salvaging only username/api_key, so adding a section must never bump
+	 *       CONFIG_VERSION - that would destroy every existing user's game bindings. Old configs
+	 *       simply lack this key and get it back-filled by the `friends` getter.
+	 */
+	friends?: FriendsData,
 	config_version: string
 };
 
@@ -39,6 +46,43 @@ export type CacheData = {
 	custom_ids_overrides: Record<number, CustomIdsOverrides>,
 };
 
+/**
+ * How a Steam account got associated with a RetroAchievements account.
+ *
+ * - `motto`   the friend published `steam:<their SteamID64>` in their RetroAchievements motto and
+ *             we read it back, so the link is proven by both parties.
+ * - `manual`  entered by hand. Trusted, but unproven - the RA user never confirmed the association.
+ */
+export type FriendLinkSource = "manual" | "motto";
+
+export type FriendLink = {
+	/**
+	 * SteamID64 of the friend, as a string. These exceed Number.MAX_SAFE_INTEGER,
+	 * so they must never be stored or compared as numbers.
+	 */
+	steam_id: string,
+	ra_username: string,
+	source: FriendLinkSource,
+	/**
+	 * ISO timestamp of the last successful motto verification, or null when never verified.
+	 */
+	verified_at: string | null,
+	/**
+	 * Last known Steam persona name, kept only so the settings list stays readable
+	 * while the friends list is still loading.
+	 */
+	persona_name?: string | null,
+};
+
+export type FriendsData = {
+	enabled: boolean,
+	/**
+	 * Keyed by SteamID64.
+	 */
+	links: Record<string, FriendLink>,
+	poll_interval_minutes: number,
+};
+
 export type GeneralData = {
 	game_page: boolean,
 	store_category: boolean,
@@ -49,6 +93,12 @@ export type GeneralData = {
 };
 
 export const CONFIG_VERSION = "1.1.0";
+
+export const DEFAULT_FRIENDS: FriendsData = {
+	enabled: false,
+	links: {},
+	poll_interval_minutes: 15,
+};
 
 const DEFAULT_CONFIG: SettingsData = {
 	config_version: CONFIG_VERSION,
@@ -65,6 +115,7 @@ const DEFAULT_CONFIG: SettingsData = {
 		store_category: true,
 		show_achieved_state_prefixes: true,
 	},
+	friends: JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
 };
 
 
@@ -123,6 +174,34 @@ export class Settings
 	set cache(cache: CacheData)
 	{
 		this.set("cache", cache);
+	}
+
+	/**
+	 * Back-fills the section for configs written before friend linking existed. Doing it here
+	 * rather than through a config migration keeps CONFIG_VERSION at 1.1.0 - see SettingsData.
+	 */
+	get friends(): FriendsData
+	{
+		if (!this.data.friends)
+		{
+			this.data.friends = JSON.parse(JSON.stringify(DEFAULT_FRIENDS));
+		}
+		const friends = this.data.friends as FriendsData;
+		if (!friends.links) friends.links = {};
+		if (typeof friends.enabled !== "boolean") friends.enabled = DEFAULT_FRIENDS.enabled;
+		if (typeof friends.poll_interval_minutes !== "number" || friends.poll_interval_minutes <= 0)
+		{
+			friends.poll_interval_minutes = DEFAULT_FRIENDS.poll_interval_minutes;
+		}
+		return friends;
+	}
+
+	set friends(friends: FriendsData)
+	{
+		// NOTE: `set` bails out when the key is absent, which is exactly the case for pre-existing
+		//       configs. Touch the getter first so the section exists before assigning.
+		void this.friends;
+		this.set("friends", friends);
 	}
 
 

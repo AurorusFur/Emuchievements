@@ -269,6 +269,42 @@ export class AchievementManager implements Manager
 
 	private throttle = throttledQueue(4, 1000, true);
 
+	/**
+	 * Runs a task against the shared RetroAchievements rate limit. Anything else in the plugin
+	 * that talks to the RA API must go through here rather than opening a second queue, or the
+	 * two queues together would exceed the budget this one is sized for.
+	 */
+	public enqueue<T>(task: () => Promise<T>): Promise<T>
+	{
+		return this.throttle(task) as Promise<T>;
+	}
+
+	/**
+	 * Local non-Steam appids bound to a RetroAchievements game id.
+	 *
+	 * Reads both id sources on purpose: a custom-bound game keeps `ids[appId] === null` while its
+	 * real id lives in `custom_ids_overrides` (see getAchievementsForGame), so an index built from
+	 * `ids` alone would silently miss exactly the games the user bound by hand.
+	 */
+	public getAppIdsForRetroGameId(gameId: number): number[]
+	{
+		if (!gameId) return [];
+
+		const appIds = new Set<number>();
+
+		for (const [appId, retroGameId] of Object.entries(this.ids ?? {}))
+		{
+			if (retroGameId === gameId) appIds.add(Number.parseInt(appId, 10));
+		}
+
+		for (const [appId, override] of Object.entries(this.customIdsOverrides ?? {}))
+		{
+			if (override?.retro_achivement_game_id === gameId) appIds.add(Number.parseInt(appId, 10));
+		}
+
+		return Array.from(appIds).filter((appId) => !Number.isNaN(appId));
+	}
+
 	public async getAchievementsForGame(app_id: number): Promise<AchievementsData | undefined>
 	{
 		const settings = this.state.settings;

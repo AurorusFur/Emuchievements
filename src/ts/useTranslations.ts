@@ -1,6 +1,25 @@
 import { useState } from "react";
 import languages from "./translations";
 
+export type TranslationKey = keyof (typeof languages)['en'];
+
+/**
+ * `en` is the source of truth; the other locales are translated externally and lag behind
+ * whenever strings are added, so each one is treated as partial and falls back per key.
+ */
+const dictionaries = languages as Record<keyof typeof languages, Partial<Record<TranslationKey, string>>>;
+
+function translate(lang: keyof typeof languages, key: TranslationKey): string
+{
+	const translated = dictionaries[lang]?.[key];
+	if (translated?.length) return translated;
+
+	const fallback = dictionaries.en?.[key];
+	if (fallback?.length) return fallback;
+
+	return key;
+}
+
 function getCurrentLanguage(): keyof typeof languages
 {
 	const steamLang = window.LocalizationManager.m_rgLocalesToUse[0];
@@ -13,36 +32,17 @@ function getCurrentLanguage(): keyof typeof languages
 export function useTranslations()
 {
 	const [lang] = useState(getCurrentLanguage());
-	return function (key: keyof (typeof languages)['en']): string
+	return function (key: TranslationKey): string
 	{
-		if (languages[lang]?.[key]?.length)
-		{
-			return languages[lang]?.[key];
-		} else if (languages.en?.[key]?.length)
-		{
-			return languages.en?.[key];
-		} else
-		{
-			return key;
-		}
+		return translate(lang, key);
 	};
 }
 
 export function getTranslateFunc()
 {
-	return function (key: keyof (typeof languages)['en']): string
+	return function (key: TranslationKey): string
 	{
-		const lang = getCurrentLanguage();
-		if (languages[lang]?.[key]?.length)
-		{
-			return languages[lang]?.[key];
-		} else if (languages.en?.[key]?.length)
-		{
-			return languages.en?.[key];
-		} else
-		{
-			return key;
-		}
+		return translate(getCurrentLanguage(), key);
 	};
 }
 

@@ -13,6 +13,7 @@ import { FaCog, FaSync, FaTrash } from "react-icons/fa";
 import { useTranslations } from "../useTranslations";
 import React from "react";
 import { StyledButtonItem } from "./styleWrapper";
+import { FriendActivityList } from "./friendActivityComponent";
 
 export const SettingsButton: VFC = () =>
 {
@@ -137,6 +138,22 @@ export const GameList: VFC = () =>
 	})}</>;
 };
 
+const FriendActivitySection: VFC = () =>
+{
+	const t = useTranslations();
+	const { settings } = useEmuchievementsState();
+
+	// Stays entirely out of the panel until the user opts in.
+	if (!settings.friends.enabled) return null;
+
+	return <>
+		<PanelSectionRow>
+			<Field label={t("friendsActivity")} bottomSeparator="standard" />
+		</PanelSectionRow>
+		<FriendActivityList />
+	</>;
+};
+
 export const EmuchievementsComponent: VFC = () =>
 {
 	const { loadingData } = useEmuchievementsState();
@@ -175,6 +192,7 @@ export const EmuchievementsComponent: VFC = () =>
 					<PanelSectionRow>
 						<CacheButton />
 					</PanelSectionRow>
+					<FriendActivitySection />
 					<GameList />
 				</PanelSection>)
 	);

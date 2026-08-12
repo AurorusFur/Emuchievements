@@ -4,6 +4,7 @@ const flog = (level: "info" | "warn" | "error", message: string) =>
 	call<[string, string], void>("log_frontend", level, message).catch(() => {});
 import { createContext, FC, ReactNode, useContext, useEffect, useState } from "react";
 import { AchievementManager, Manager } from "../AchievementsManager";
+import { FriendsManager } from "../FriendsManager";
 import { getAllNonSteamAppOverview } from "../steam-utils";
 import { Promise } from "bluebird";
 import { Settings } from "../settings";
@@ -37,6 +38,7 @@ export interface LoadingData
 interface Managers
 {
 	achievementManager: AchievementManager;
+	friendsManager: FriendsManager;
 }
 
 interface EmuchievementsStateContext
@@ -168,7 +170,8 @@ export class EmuchievementsState
 	}
 
 	private readonly _managers: Managers = {
-		achievementManager: new AchievementManager(this)
+		achievementManager: new AchievementManager(this),
+		friendsManager: new FriendsManager(this)
 	};
 
 	public eventBus = new EventTarget();
