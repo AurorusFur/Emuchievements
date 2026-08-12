@@ -298,7 +298,10 @@ export class AchievementManager implements Manager
 				}
 
 				if (!this.customIdsOverrides[app_id]) {
-					this.ids[app_id] = null;
+					// NOTE: Deliberately does not seed `ids[app_id]` with null. A null id paired with a
+					//       null override id is exactly what refreshAchievements() reads as "skip this
+					//       app", so writing it before the lookup has even run blacklists the game on
+					//       its first failure and no later refresh can pick it up again.
 					this.customIdsOverrides[app_id] = {
 						name: shortcut.strDisplayName,
 						retro_achivement_game_id: null,
@@ -340,21 +343,34 @@ export class AchievementManager implements Manager
 
 					await this.saveCache();
 				} else {
-					const md5 = await call<[string], string>("hash", rom);
+					// NOTE: Unmatched apps are retried on every refresh now, so reuse the md5 from a
+					//       previous attempt when there is one - rehashing large ROMs each time is
+					//       far more expensive than the lookup itself.
+					const cachedHash = this.customIdsOverrides[app_id]?.hash;
+					const md5 = typeof cachedHash === "string"
+						? cachedHash
+						: await call<[string], string>("hash", rom);
 					this.logger.debug(`${app_id} md5: `, md5);
 					if (md5 === "")
 					{
-						this.ids[app_id] = null;
+						// Hashing itself failed (unreadable ROM, missing helper). Leave the app out of
+						// `ids` so it stays eligible for the next refresh rather than being skipped.
+						delete this.ids[app_id];
 						await this.saveCache();
 						return undefined;
 					} else
 					{
 						const gameId = this.hashes[md5];
-						this.ids[app_id] = gameId ?? null;
 						hash = md5;
+						this.customIdsOverrides[app_id].hash = md5;
 						if (gameId) {
+							this.ids[app_id] = gameId;
 							this.customIdsOverrides[app_id].retro_achivement_game_id = gameId;
-							this.customIdsOverrides[app_id].hash = md5;
+						} else {
+							// Hash is valid but resolved to nothing. That is either a genuine miss or a
+							// hash library that failed to load at init, and the two are indistinguishable
+							// here - so stay out of `ids` and let the next refresh try again.
+							delete this.ids[app_id];
 						}
 						await this.saveCache();
 					}
